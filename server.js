@@ -151,6 +151,248 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
+const GENERATE_PROMPT = `You are an expert resume writer and career strategist. You will be given:
+1. A candidate's personal information
+2. Their complete experience bank (work, volunteer, projects, education)
+3. A target job description
+
+Your job is to create the BEST POSSIBLE resume for this specific job by:
+- Selecting the most relevant experiences from their bank
+- Rewriting bullet points to emphasize skills and achievements that align with the job requirements
+- Using keywords and phrases from the job description naturally
+- Quantifying achievements where possible
+- Ordering sections and items for maximum impact
+- Writing a tailored professional summary
+
+IMPORTANT RULES:
+- Only use experiences the candidate actually has — never fabricate
+- You may reword, reframe, and emphasize differently, but never lie about what they did
+- Drop experiences that are irrelevant or would weaken the resume
+- Combine or split bullet points as needed for clarity
+- Keep the resume concise — aim for what would fit on 1-2 pages
+
+You MUST respond with valid JSON only — no markdown, no code fences, no explanation outside the JSON.
+
+{
+  "resume": {
+    "name": "<candidate name>",
+    "email": "<email>",
+    "phone": "<phone or null>",
+    "location": "<location or null>",
+    "linkedin": "<linkedin or null>",
+    "github": "<github or null>",
+    "summary": "<2-3 sentence tailored professional summary>",
+    "sections": [
+      {
+        "heading": "<section name, e.g. Professional Experience, Projects, Education>",
+        "items": [
+          {
+            "title": "<job title / project name / degree>",
+            "subtitle": "<company / org / institution or null>",
+            "dates": "<date range or null>",
+            "bullets": ["<rewritten bullet point>", ...]
+          }
+        ]
+      }
+    ],
+    "skills": "<comma-separated skills string tailored to the job, or null>"
+  },
+  "fit_score": <integer 0-100>,
+  "strengths": [<3-6 strings: why this resume is a good fit>],
+  "gaps": [<2-5 strings: remaining gaps even after optimization>],
+  "recommendation": "<STRONG_HIRE, HIRE, LEAN_HIRE, LEAN_NO_HIRE, or NO_HIRE>",
+  "reasoning": "<2-4 sentences explaining the fit and what was optimized>"
+}`;
+
+const DEMO_GENERATE_RESULT = {
+  resume: {
+    name: "Alex Chen",
+    email: "alex.chen@email.com",
+    phone: "+1 415-555-0192",
+    location: "San Francisco, CA",
+    linkedin: "linkedin.com/in/alexchen",
+    github: "github.com/alexchen",
+    summary: "Senior Software Engineer with 6 years of experience building scalable web applications and distributed systems. Proven track record of designing high-throughput microservices, leading cross-functional teams, and driving engineering best practices including comprehensive testing and CI/CD automation.",
+    sections: [
+      {
+        heading: "Professional Experience",
+        items: [
+          {
+            title: "Senior Software Engineer",
+            subtitle: "Stripe",
+            dates: "Mar 2021 – Present",
+            bullets: [
+              "Architected and led development of a real-time payment processing dashboard serving 10K+ merchants, leveraging React, TypeScript, and GraphQL to deliver sub-200ms page loads",
+              "Designed microservices architecture handling 50K requests/second using Node.js, Kubernetes, and event-driven patterns, achieving 99.99% uptime",
+              "Optimized API performance by 40% through strategic query optimization, Redis caching layers, and database indexing improvements",
+              "Mentored 4 junior engineers through structured code review sessions and 1:1 growth plans, with 2 promoted within 18 months",
+              "Championed end-to-end testing adoption with Playwright, driving test coverage from 45% to 89% and reducing production incidents by 35%",
+            ],
+          },
+          {
+            title: "Software Engineer",
+            subtitle: "Coinbase",
+            dates: "Jun 2019 – Feb 2021",
+            bullets: [
+              "Built and maintained a React component library adopted by 12 product teams, reducing frontend development time by 30% and ensuring design consistency",
+              "Implemented secure OAuth 2.0 authentication flow and granular role-based access control system for internal tooling platform",
+              "Engineered CI/CD pipeline using GitHub Actions that reduced deployment cycle from 45 minutes to 8 minutes, enabling multiple daily releases",
+              "Maintained 99.95% uptime SLA through proactive on-call incident response and post-mortem driven reliability improvements",
+            ],
+          },
+          {
+            title: "Junior Software Engineer",
+            subtitle: "Twilio",
+            dates: "Jul 2018 – May 2019",
+            bullets: [
+              "Developed high-throughput REST APIs in Python/Flask for SMS routing engine processing 1M+ messages daily with 99.9% delivery rate",
+              "Achieved 92% code coverage through comprehensive unit and integration testing with pytest, reducing regression bugs by 60%",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Projects",
+        items: [
+          {
+            title: "OpenTracker",
+            subtitle: "Open Source",
+            dates: "2023 – Present",
+            bullets: [
+              "Created real-time analytics dashboard handling 100K+ events/minute with sub-100ms rendering using React, D3.js, and WebSockets",
+              "Deployed on AWS (ECS, CloudFront, DynamoDB) with infrastructure-as-code; 800+ GitHub stars and featured in JavaScript Weekly",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Education",
+        items: [
+          {
+            title: "B.S. Computer Science",
+            subtitle: "University of California, Berkeley",
+            dates: "2014 – 2018",
+            bullets: [
+              "Coursework: Distributed Systems, Machine Learning, Algorithms, Database Systems",
+              "Dean's List 2016-2018 · Teaching Assistant for CS 61B: Data Structures",
+            ],
+          },
+        ],
+      },
+    ],
+    skills: "TypeScript, JavaScript, Python, React, Next.js, Node.js, GraphQL, REST APIs, PostgreSQL, Redis, DynamoDB, AWS, GCP, Kubernetes, Docker, Terraform, CI/CD, Git, Playwright, Jest, pytest",
+  },
+  fit_score: 88,
+  strengths: [
+    "6 years of professional software engineering experience exceeds the 5-year requirement",
+    "Deep React, TypeScript, and Node.js expertise directly matches core tech stack requirements",
+    "Proven microservices and distributed systems experience at scale (50K req/s at Stripe)",
+    "Strong mentorship track record with measurable outcomes (2 reports promoted)",
+    "Extensive CI/CD and testing experience aligns with engineering best practices requirement",
+    "Open-source contributions and community involvement demonstrate initiative",
+  ],
+  gaps: [
+    "No explicit Go experience mentioned, which is listed in the job's nice-to-have",
+    "Could strengthen data pipeline experience for the Python data processing requirement",
+  ],
+  recommendation: "STRONG_HIRE",
+  reasoning: "The tailored resume presents an exceptionally strong fit for this Senior Software Engineer role. Bullet points were rewritten to emphasize scalable system design, team leadership, and quantified impact metrics that directly mirror the job requirements. The volunteer mentoring and open-source work were strategically included to reinforce the mentorship and community contribution aspects of the role. The only notable gaps are around Go experience and data pipelines, both listed as nice-to-haves rather than requirements.",
+};
+
+function validateGeneratedResume(data) {
+  if (typeof data !== "object" || data === null) {
+    throw new Error("Response is not a JSON object");
+  }
+  if (!data.resume || typeof data.resume !== "object") {
+    throw new Error("Missing resume object in response");
+  }
+  const r = data.resume;
+  if (typeof r.name !== "string" || !r.name.trim()) {
+    throw new Error("Missing resume name");
+  }
+  if (!Array.isArray(r.sections) || r.sections.length === 0) {
+    throw new Error("Resume must have at least one section");
+  }
+  for (const section of r.sections) {
+    if (!section.heading || !Array.isArray(section.items)) {
+      throw new Error("Each section needs a heading and items array");
+    }
+    for (const item of section.items) {
+      if (!item.title || !Array.isArray(item.bullets)) {
+        throw new Error("Each item needs a title and bullets array");
+      }
+    }
+  }
+  validateAnalysis(data);
+  return data;
+}
+
+app.post("/api/generate", async (req, res) => {
+  const { personalInfo, experiences, jobDescription } = req.body;
+  if (!personalInfo || !experiences || !jobDescription) {
+    return res.status(400).json({ error: "Personal info, experiences, and job description are required." });
+  }
+
+  if (demoMode) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return res.json(DEMO_GENERATE_RESULT);
+  }
+
+  if (!client) {
+    return res.status(401).json({ error: "API client not initialized. Please enter your API key." });
+  }
+
+  const experienceText = experiences
+    .map((exp) => {
+      const parts = [`[${exp.type.toUpperCase()}]`];
+      if (exp.title) parts.push(`Title: ${exp.title}`);
+      if (exp.organization) parts.push(`Organization: ${exp.organization}`);
+      if (exp.startDate || exp.endDate) parts.push(`Dates: ${exp.startDate || "?"} – ${exp.endDate || "?"}`);
+      if (exp.description) parts.push(`Description:\n${exp.description}`);
+      return parts.join("\n");
+    })
+    .join("\n\n---\n\n");
+
+  const personalInfoText = Object.entries(personalInfo)
+    .filter(([, v]) => v && v.trim())
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: `Generate a tailored resume for the following job description using the candidate's experience bank.\n\nPERSONAL INFO:\n${personalInfoText}\n\nEXPERIENCE BANK:\n${experienceText}\n\nTARGET JOB DESCRIPTION:\n${jobDescription}`,
+        },
+      ],
+      system: GENERATE_PROMPT,
+    });
+
+    const text = response.content[0].text;
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse Claude response as JSON");
+      }
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        throw new Error("Failed to parse Claude response as JSON");
+      }
+    }
+
+    res.json(validateGeneratedResume(parsed));
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Resume generation failed." });
+  }
+});
+
 app.get("/api/status", (_req, res) => {
   res.json({ demo: demoMode, ready: demoMode || client !== null });
 });

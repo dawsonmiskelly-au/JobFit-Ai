@@ -1,13 +1,15 @@
 import { useState, useCallback } from "react";
 import { validateKey, isDemoMode } from "./api";
-import AnalyzerPage from "./components/AnalyzerPage";
+import ExperiencePage from "./components/ExperiencePage";
+import GeneratorPage from "./components/GeneratorPage";
 import EvalDashboard from "./components/EvalDashboard";
 import HistoryPanel from "./components/HistoryPanel";
 
 const TABS = [
-  { id: "analyzer", label: "Analyzer", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
-  { id: "eval", label: "Eval Dashboard", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "experience", label: "My Experience", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  { id: "generator", label: "Generate Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { id: "history", label: "History", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "eval", label: "Eval", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
 ];
 
 function loadHistory() {
@@ -22,11 +24,11 @@ function loadHistory() {
 function saveHistory(history) {
   try {
     localStorage.setItem("jobfit-history", JSON.stringify(history));
-  } catch { /* quota exceeded — silently drop */ }
+  } catch { /* quota exceeded */ }
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("analyzer");
+  const [activeTab, setActiveTab] = useState("experience");
   const [apiKey, setApiKey] = useState("");
   const [keySet, setKeySet] = useState(false);
   const [keyError, setKeyError] = useState(null);
@@ -46,15 +48,14 @@ export default function App() {
     }
   }
 
-  const handleResult = useCallback((result, resume, jobDesc) => {
+  const handleResult = useCallback((result, jobDesc) => {
     setHistory((prev) => {
       const entry = {
         result,
-        resume,
         jobDesc,
         timestamp: new Date().toLocaleString(),
       };
-      const updated = [entry, ...prev].slice(0, 5);
+      const updated = [entry, ...prev].slice(0, 10);
       saveHistory(updated);
       return updated;
     });
@@ -70,7 +71,7 @@ export default function App() {
             </div>
             <h1 className="text-4xl font-bold text-white tracking-tight">JobFit AI</h1>
             <p className="text-gray-400 text-sm">
-              Claude-powered resume and job description analyzer with built-in evaluation harness
+              AI-powered resume generator that tailors your experience to any job description
             </p>
           </div>
 
@@ -155,9 +156,10 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {activeTab === "analyzer" && <AnalyzerPage onResult={handleResult} />}
-        {activeTab === "eval" && <EvalDashboard />}
+        {activeTab === "experience" && <ExperiencePage />}
+        {activeTab === "generator" && <GeneratorPage onResult={handleResult} />}
         {activeTab === "history" && <HistoryPanel history={history} />}
+        {activeTab === "eval" && <EvalDashboard />}
       </main>
     </div>
   );

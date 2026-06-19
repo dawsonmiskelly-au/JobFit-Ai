@@ -32,3 +32,17 @@ export async function analyzeResume(resume, jobDescription, { signal } = {}) {
   }
   return await res.json();
 }
+
+export async function generateResume(personalInfo, experiences, jobDescription, { signal } = {}) {
+  const res = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ personalInfo, experiences, jobDescription }),
+    signal,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Resume generation failed.");
+  }
+  return await res.json();
+}
