@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { validateKey, isDemoMode } from "./api";
+import { isDemoMode } from "./api";
 import ExperiencePage from "./components/ExperiencePage";
 import GeneratorPage from "./components/GeneratorPage";
 import EvalDashboard from "./components/EvalDashboard";
@@ -29,30 +29,14 @@ function saveHistory(history) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("experience");
-  const [apiKey, setApiKey] = useState("");
-  const [keySet, setKeySet] = useState(false);
-  const [keyError, setKeyError] = useState(null);
-  const [validating, setValidating] = useState(false);
   const [history, setHistory] = useState(loadHistory);
 
-  async function handleSetKey() {
-    if (!apiKey.trim() || validating) return;
-    setValidating(true);
-    setKeyError(null);
-    const { valid, error } = await validateKey(apiKey.trim());
-    setValidating(false);
-    if (valid) {
-      setKeySet(true);
-    } else {
-      setKeyError(error);
-    }
-  }
-
-  const handleResult = useCallback((result, jobDesc) => {
+  const handleResult = useCallback((result, jobDesc, companyName) => {
     setHistory((prev) => {
       const entry = {
         result,
         jobDesc,
+        companyName: companyName || "Untitled",
         timestamp: new Date().toLocaleString(),
       };
       const updated = [entry, ...prev].slice(0, 10);
@@ -60,56 +44,6 @@ export default function App() {
       return updated;
     });
   }, []);
-
-  if (!keySet) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-900/30 border border-indigo-500/20 rounded-full text-xs text-indigo-300 font-medium">
-              Powered by Claude
-            </div>
-            <h1 className="text-4xl font-bold text-white tracking-tight">JobFit AI</h1>
-            <p className="text-gray-400 text-sm">
-              AI-powered resume generator that tailors your experience to any job description
-            </p>
-          </div>
-
-          <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 space-y-4 backdrop-blur">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">Anthropic API Key</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSetKey()}
-                placeholder="sk-ant-..."
-                disabled={validating}
-                className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all disabled:opacity-50"
-              />
-            </div>
-            {keyError && <p className="text-sm text-red-400">{keyError}</p>}
-            <button
-              onClick={handleSetKey}
-              disabled={validating}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-900/30 flex items-center justify-center gap-2"
-            >
-              {validating && (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-                </svg>
-              )}
-              {validating ? "Validating..." : "Get Started"}
-            </button>
-            <p className="text-xs text-gray-600 text-center">
-              Your key is sent to the backend server and held in memory for this session only. It is never persisted to disk.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen">

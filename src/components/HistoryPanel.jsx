@@ -1,11 +1,11 @@
 import ScoreIndicator from "./ScoreIndicator";
 
 const RECS = {
-  STRONG_HIRE: "Strong Hire",
-  HIRE: "Hire",
-  LEAN_HIRE: "Lean Hire",
-  LEAN_NO_HIRE: "Lean No Hire",
-  NO_HIRE: "No Hire",
+  STRONG_HIRE: "Apply Now",
+  HIRE: "Apply",
+  LEAN_HIRE: "Apply with Caveats",
+  LEAN_NO_HIRE: "Upskill First",
+  NO_HIRE: "Look Elsewhere",
 };
 
 export default function HistoryPanel({ history }) {
@@ -16,7 +16,7 @@ export default function HistoryPanel({ history }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p className="text-sm">No generated resumes yet</p>
-        <p className="text-xs mt-2 text-gray-600">Results from the Generator will appear here for comparison</p>
+        <p className="text-xs mt-2 text-gray-600">Results from the Generator will appear here</p>
       </div>
     );
   }
@@ -29,16 +29,17 @@ export default function HistoryPanel({ history }) {
       {history.map((entry, idx) => {
         const result = entry.result;
         const resume = result.resume;
+        const title = entry.companyName || "Untitled";
 
         return (
           <div key={idx} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5 space-y-4">
             <div className="flex items-start gap-4">
               <ScoreIndicator score={result.fit_score} />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs text-gray-500">#{history.length - idx}</span>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-semibold text-white truncate">{title}</h3>
                   <span className="text-xs text-gray-600">•</span>
-                  <span className="text-xs text-gray-500">{entry.timestamp}</span>
+                  <span className="text-xs text-gray-500 shrink-0">{entry.timestamp}</span>
                 </div>
                 <div className={`inline-block px-3 py-1 rounded-md text-xs font-semibold mb-2 ${
                   result.fit_score >= 70 ? "bg-emerald-900/40 text-emerald-300" :
@@ -50,16 +51,9 @@ export default function HistoryPanel({ history }) {
                 </div>
                 <p className="text-sm text-gray-400 line-clamp-2">{result.reasoning}</p>
 
-                {resume && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs font-medium text-gray-300">
-                      Generated for: <span className="text-gray-400">{resume.name}</span>
-                    </div>
-                    {resume.sections && (
-                      <div className="text-xs text-gray-500">
-                        Sections: {resume.sections.map((s) => s.heading).join(", ")}
-                      </div>
-                    )}
+                {resume && resume.sections && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    Sections: {resume.sections.map((s) => s.heading).join(", ")}
                   </div>
                 )}
 

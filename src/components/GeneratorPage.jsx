@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { generateResume } from "../api";
+import { jsPDF } from "jspdf";
+import { validateKey, generateResume, isKeySet } from "../api";
 import { loadExperiences, loadPersonalInfo } from "../store";
 import ScoreIndicator from "./ScoreIndicator";
 
@@ -47,6 +48,107 @@ async function extractPdfText(arrayBuffer) {
   return cleanExtractedText(pages.join("\n\n"));
 }
 
+function generateHarvardPdf(resume, companyName) {
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 72;
+  const usable = pageWidth - margin * 2;
+  let y = 60;
+
+  function checkPage(needed) {
+    if (y + needed > doc.internal.pageSize.getHeight() - 60) {
+      doc.addPage();
+      y = 60;
+    }
+  }
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(18);
+  doc.text(resume.name.toUpperCase(), pageWidth / 2, y, { align: "center" });
+  y += 20;
+
+  doc.setFont("times", "normal");
+  doc.setFontSize(10);
+  const contact = [resume.email, resume.phone, resume.location, resume.linkedin, resume.github]
+    .filter(Boolean)
+    .join("  |  ");
+  doc.text(contact, pageWidth / 2, y, { align: "center" });
+  y += 8;
+
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 14;
+
+  function sectionHeading(title) {
+    checkPage(30);
+    doc.setFont("times", "bold");
+    doc.setFontSize(11);
+    doc.text(title.toUpperCase(), margin, y);
+    y += 3;
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 12;
+  }
+
+  function wrapText(text, maxWidth, fontSize) {
+    doc.setFontSize(fontSize);
+    return doc.splitTextToSize(text, maxWidth);
+  }
+
+  if (resume.summary) {
+    sectionHeading("Summary");
+    doc.setFont("times", "normal");
+    doc.setFontSize(10);
+    const lines = wrapText(resume.summary, usable, 10);
+    checkPage(lines.length * 13);
+    doc.text(lines, margin, y);
+    y += lines.length * 13 + 8;
+  }
+
+  for (const section of resume.sections) {
+    sectionHeading(section.heading);
+
+    for (const item of section.items) {
+      checkPage(40);
+
+      doc.setFont("times", "bold");
+      doc.setFontSize(10);
+      const titleText = item.subtitle ? `${item.title}, ${item.subtitle}` : item.title;
+      doc.text(titleText, margin, y);
+
+      if (item.dates) {
+        doc.setFont("times", "italic");
+        doc.setFontSize(10);
+        doc.text(item.dates, pageWidth - margin, y, { align: "right" });
+      }
+      y += 14;
+
+      doc.setFont("times", "normal");
+      doc.setFontSize(10);
+      for (const bullet of item.bullets) {
+        const bulletText = `•  ${bullet}`;
+        const lines = wrapText(bulletText, usable - 10, 10);
+        checkPage(lines.length * 12);
+        doc.text(lines, margin + 10, y);
+        y += lines.length * 12;
+      }
+      y += 6;
+    }
+  }
+
+  if (resume.skills) {
+    sectionHeading("Skills");
+    doc.setFont("times", "normal");
+    doc.setFontSize(10);
+    const lines = wrapText(resume.skills, usable, 10);
+    checkPage(lines.length * 13);
+    doc.text(lines, margin, y);
+  }
+
+  const filename = `Resume_${companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+  doc.save(filename);
+}
+
 const REC_STYLES = {
   STRONG_HIRE: "bg-emerald-900/40 text-emerald-300 border-emerald-500/30",
   HIRE: "bg-emerald-900/30 text-emerald-300 border-emerald-500/20",
@@ -56,14 +158,14 @@ const REC_STYLES = {
 };
 
 const REC_LABELS = {
-  STRONG_HIRE: "Strong Hire",
-  HIRE: "Hire",
-  LEAN_HIRE: "Lean Hire",
-  LEAN_NO_HIRE: "Lean No Hire",
-  NO_HIRE: "No Hire",
+  STRONG_HIRE: "Apply Now",
+  HIRE: "Apply",
+  LEAN_HIRE: "Apply with Caveats",
+  LEAN_NO_HIRE: "Upskill First",
+  NO_HIRE: "Look Elsewhere",
 };
 
-function ResumePreview({ result }) {
+function ResumePreview({ result, companyName }) {
   const resume = result.resume;
 
   function copyToClipboard() {
@@ -105,12 +207,16 @@ function ResumePreview({ result }) {
     navigator.clipboard.writeText(lines.join("\n"));
   }
 
+  function downloadPdf() {
+    generateHarvardPdf(resume, companyName);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start gap-6">
         <ScoreIndicator score={result.fit_score} />
         <div className="flex-1 space-y-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className={`inline-block px-4 py-2 rounded-lg border font-semibold text-sm ${REC_STYLES[result.recommendation] || REC_STYLES.LEAN_NO_HIRE}`}>
               {REC_LABELS[result.recommendation] || result.recommendation}
             </div>
@@ -118,7 +224,13 @@ function ResumePreview({ result }) {
               onClick={copyToClipboard}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all"
             >
-              Copy Resume
+              Copy Text
+            </button>
+            <button
+              onClick={downloadPdf}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-all"
+            >
+              Download PDF
             </button>
           </div>
           <p className="text-gray-300 text-sm leading-relaxed">{result.reasoning}</p>
@@ -183,7 +295,7 @@ function ResumePreview({ result }) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
-          <h3 className="text-emerald-400 font-semibold text-sm uppercase tracking-wider mb-3">Key Alignments</h3>
+          <h3 className="text-emerald-400 font-semibold text-sm uppercase tracking-wider mb-3">Strengths Alignment</h3>
           <ul className="space-y-2">
             {result.strengths.map((s, i) => (
               <li key={i} className="text-gray-300 text-sm flex items-start gap-2">
@@ -194,7 +306,7 @@ function ResumePreview({ result }) {
           </ul>
         </div>
         <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
-          <h3 className="text-amber-400 font-semibold text-sm uppercase tracking-wider mb-3">Remaining Gaps</h3>
+          <h3 className="text-amber-400 font-semibold text-sm uppercase tracking-wider mb-3">Critical Gaps</h3>
           <ul className="space-y-2">
             {result.gaps.map((g, i) => (
               <li key={i} className="text-gray-300 text-sm flex items-start gap-2">
@@ -209,12 +321,67 @@ function ResumePreview({ result }) {
   );
 }
 
+function ApiKeyPrompt({ onValidated }) {
+  const [apiKey, setApiKey] = useState("");
+  const [error, setError] = useState(null);
+  const [validating, setValidating] = useState(false);
+
+  async function handleSubmit() {
+    if (!apiKey.trim() || validating) return;
+    setValidating(true);
+    setError(null);
+    const { valid, error: err } = await validateKey(apiKey.trim());
+    setValidating(false);
+    if (valid) {
+      onValidated();
+    } else {
+      setError(err);
+    }
+  }
+
+  return (
+    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5 space-y-3">
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-300">Anthropic API Key</label>
+        <p className="text-xs text-gray-500">Required to generate resumes. Held in memory only for this session.</p>
+      </div>
+      <div className="flex gap-3">
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="sk-ant-... or type 'demo'"
+          disabled={validating}
+          className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={validating}
+          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all flex items-center gap-2"
+        >
+          {validating && (
+            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
+            </svg>
+          )}
+          {validating ? "Validating..." : "Connect"}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 export default function GeneratorPage({ onResult }) {
   const [jobDesc, setJobDesc] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileLoading, setFileLoading] = useState(false);
+  const [keyReady, setKeyReady] = useState(isKeySet());
   const abortRef = useRef(null);
 
   async function handleGenerate() {
@@ -223,6 +390,10 @@ export default function GeneratorPage({ onResult }) {
 
     if (!jobDesc.trim()) {
       setError("Please provide a job description.");
+      return;
+    }
+    if (!companyName.trim()) {
+      setError("Please enter the company name.");
       return;
     }
     if (experiences.length === 0) {
@@ -244,7 +415,7 @@ export default function GeneratorPage({ onResult }) {
         signal: abortRef.current.signal,
       });
       setResult(generated);
-      onResult(generated, jobDesc);
+      onResult(generated, jobDesc, companyName.trim());
     } catch (err) {
       if (err.name === "AbortError") {
         setError("Generation cancelled.");
@@ -304,51 +475,70 @@ export default function GeneratorPage({ onResult }) {
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-300">Job Description</label>
-          <label className={`text-xs transition-colors ${fileLoading ? "text-gray-500 cursor-wait" : "text-indigo-400 hover:text-indigo-300 cursor-pointer"}`}>
-            <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} disabled={fileLoading} className="hidden" />
-            {fileLoading ? "Reading PDF..." : "Upload file"}
-          </label>
-        </div>
-        <textarea
-          value={jobDesc}
-          onChange={(e) => setJobDesc(e.target.value)}
-          placeholder="Paste the full job description here..."
-          className="w-full h-56 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none transition-all"
-        />
-      </div>
+      {!keyReady && <ApiKeyPrompt onValidated={() => setKeyReady(true)} />}
 
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-900/30"
-        >
-          {loading && (
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-            </svg>
+      {keyReady && (
+        <>
+          <div className="grid sm:grid-cols-[1fr_auto] gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-300">Job Description</label>
+                <label className={`text-xs transition-colors ${fileLoading ? "text-gray-500 cursor-wait" : "text-indigo-400 hover:text-indigo-300 cursor-pointer"}`}>
+                  <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} disabled={fileLoading} className="hidden" />
+                  {fileLoading ? "Reading PDF..." : "Upload file"}
+                </label>
+              </div>
+              <textarea
+                value={jobDesc}
+                onChange={(e) => setJobDesc(e.target.value)}
+                placeholder="Paste the full job description here..."
+                className="w-full h-56 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none transition-all"
+              />
+            </div>
+            <div className="space-y-2 sm:w-48">
+              <label className="text-sm font-medium text-gray-300">Company Name</label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g. Google"
+                className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all"
+              />
+              <p className="text-xs text-gray-500">Used to title the saved resume</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-900/30"
+            >
+              {loading && (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
+                </svg>
+              )}
+              {loading ? "Generating..." : "Generate Resume"}
+            </button>
+            {loading && (
+              <button
+                onClick={handleCancel}
+                className="px-4 py-3 border border-gray-600 hover:border-gray-500 text-gray-300 font-medium rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+            )}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+          </div>
+
+          {result && (
+            <div className="border-t border-gray-800 pt-6">
+              <ResumePreview result={result} companyName={companyName || "Resume"} />
+            </div>
           )}
-          {loading ? "Generating..." : "Generate Resume"}
-        </button>
-        {loading && (
-          <button
-            onClick={handleCancel}
-            className="px-4 py-3 border border-gray-600 hover:border-gray-500 text-gray-300 font-medium rounded-xl transition-all"
-          >
-            Cancel
-          </button>
-        )}
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-      </div>
-
-      {result && (
-        <div className="border-t border-gray-800 pt-6">
-          <ResumePreview result={result} />
-        </div>
+        </>
       )}
     </div>
   );

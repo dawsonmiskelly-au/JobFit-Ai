@@ -1,5 +1,6 @@
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { runResumeAgent } from "./agent.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -151,59 +152,6 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
-const GENERATE_PROMPT = `You are an expert resume writer and career strategist. You will be given:
-1. A candidate's personal information
-2. Their complete experience bank (work, volunteer, projects, education)
-3. A target job description
-
-Your job is to create the BEST POSSIBLE resume for this specific job by:
-- Selecting the most relevant experiences from their bank
-- Rewriting bullet points to emphasize skills and achievements that align with the job requirements
-- Using keywords and phrases from the job description naturally
-- Quantifying achievements where possible
-- Ordering sections and items for maximum impact
-- Writing a tailored professional summary
-
-IMPORTANT RULES:
-- Only use experiences the candidate actually has — never fabricate
-- You may reword, reframe, and emphasize differently, but never lie about what they did
-- Drop experiences that are irrelevant or would weaken the resume
-- Combine or split bullet points as needed for clarity
-- Keep the resume concise — aim for what would fit on 1-2 pages
-
-You MUST respond with valid JSON only — no markdown, no code fences, no explanation outside the JSON.
-
-{
-  "resume": {
-    "name": "<candidate name>",
-    "email": "<email>",
-    "phone": "<phone or null>",
-    "location": "<location or null>",
-    "linkedin": "<linkedin or null>",
-    "github": "<github or null>",
-    "summary": "<2-3 sentence tailored professional summary>",
-    "sections": [
-      {
-        "heading": "<section name, e.g. Professional Experience, Projects, Education>",
-        "items": [
-          {
-            "title": "<job title / project name / degree>",
-            "subtitle": "<company / org / institution or null>",
-            "dates": "<date range or null>",
-            "bullets": ["<rewritten bullet point>", ...]
-          }
-        ]
-      }
-    ],
-    "skills": "<comma-separated skills string tailored to the job, or null>"
-  },
-  "fit_score": <integer 0-100>,
-  "strengths": [<3-6 strings: why this resume is a good fit>],
-  "gaps": [<2-5 strings: remaining gaps even after optimization>],
-  "recommendation": "<STRONG_HIRE, HIRE, LEAN_HIRE, LEAN_NO_HIRE, or NO_HIRE>",
-  "reasoning": "<2-4 sentences explaining the fit and what was optimized>"
-}`;
-
 const DEMO_GENERATE_RESULT = {
   resume: {
     name: "Alex Chen",
@@ -342,55 +290,35 @@ app.post("/api/generate", async (req, res) => {
     return res.status(401).json({ error: "API client not initialized. Please enter your API key." });
   }
 
-  const experienceText = experiences
-    .map((exp) => {
-      const parts = [`[${exp.type.toUpperCase()}]`];
-      if (exp.title) parts.push(`Title: ${exp.title}`);
-      if (exp.organization) parts.push(`Organization: ${exp.organization}`);
-      if (exp.startDate || exp.endDate) parts.push(`Dates: ${exp.startDate || "?"} – ${exp.endDate || "?"}`);
-      if (exp.description) parts.push(`Description:\n${exp.description}`);
-      return parts.join("\n");
-    })
-    .join("\n\n---\n\n");
-
-  const personalInfoText = Object.entries(personalInfo)
-    .filter(([, v]) => v && v.trim())
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\n");
-
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a tailored resume for the following job description using the candidate's experience bank.\n\nPERSONAL INFO:\n${personalInfoText}\n\nEXPERIENCE BANK:\n${experienceText}\n\nTARGET JOB DESCRIPTION:\n${jobDescription}`,
-        },
-      ],
-      system: GENERATE_PROMPT,
+    const { result, trace } = await runResumeAgent(client, {
+      personalInfo,
+      experiences,
+      jobDescription,
     });
 
-    const text = response.content[0].text;
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("Failed to parse Claude response as JSON");
-      }
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        throw new Error("Failed to parse Claude response as JSON");
-      }
-    }
+    lastTrace = trace;
 
-    res.json(validateGeneratedResume(parsed));
+    console.log("\n=== AGENT TRACE ===");
+    for (const step of trace) {
+      console.log(`[${step.timestamp}] ${step.step}`);
+    }
+    console.log(`=== ${trace.length} steps completed ===\n`);
+
+    res.json(validateGeneratedResume(result));
   } catch (err) {
+    console.error("Agent error:", err.message);
     res.status(500).json({ error: err.message || "Resume generation failed." });
   }
+});
+
+let lastTrace = null;
+
+app.get("/api/trace", (_req, res) => {
+  if (!lastTrace) {
+    return res.json({ message: "No trace available. Run a generation first." });
+  }
+  res.json(lastTrace);
 });
 
 app.get("/api/status", (_req, res) => {

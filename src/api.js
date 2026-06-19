@@ -1,7 +1,12 @@
 let demoMode = false;
+let keyValidated = false;
 
 export function isDemoMode() {
   return demoMode;
+}
+
+export function isKeySet() {
+  return keyValidated;
 }
 
 export async function validateKey(apiKey) {
@@ -13,6 +18,7 @@ export async function validateKey(apiKey) {
     });
     const data = await res.json();
     demoMode = data.demo === true;
+    if (data.valid) keyValidated = true;
     return { valid: data.valid, error: data.error };
   } catch {
     return { valid: false, error: "Could not reach the server. Make sure the backend is running." };
