@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Play, Loader2, CheckCircle, XCircle, FlaskConical, ChevronDown } from "lucide-react";
 import { analyzeResume } from "../api";
 import { evalCases } from "../evalCases";
 import ScoreIndicator from "./ScoreIndicator";
@@ -6,32 +7,28 @@ import ScoreIndicator from "./ScoreIndicator";
 function evaluateResult(result, expected) {
   const checks = [];
 
-  const scoreInRange = result.fit_score >= expected.scoreRange[0] && result.fit_score <= expected.scoreRange[1];
   checks.push({
     name: "Score in expected range",
-    passed: scoreInRange,
-    detail: `Got ${result.fit_score}, expected ${expected.scoreRange[0]}–${expected.scoreRange[1]}`,
+    passed: result.fit_score >= expected.scoreRange[0] && result.fit_score <= expected.scoreRange[1],
+    detail: `Got ${result.fit_score}, expected ${expected.scoreRange[0]}-${expected.scoreRange[1]}`,
   });
 
-  const recMatch = expected.recommendation.includes(result.recommendation);
   checks.push({
     name: "Recommendation matches",
-    passed: recMatch,
+    passed: expected.recommendation.includes(result.recommendation),
     detail: `Got "${result.recommendation}", expected one of [${expected.recommendation.join(", ")}]`,
   });
 
-  const hasStrengths = Array.isArray(result.strengths) && result.strengths.length >= expected.minStrengths;
   checks.push({
-    name: "Sufficient strengths identified",
-    passed: hasStrengths,
-    detail: `Got ${result.strengths?.length || 0} strengths, expected ≥${expected.minStrengths}`,
+    name: "Sufficient strengths",
+    passed: Array.isArray(result.strengths) && result.strengths.length >= expected.minStrengths,
+    detail: `Got ${result.strengths?.length || 0}, expected >= ${expected.minStrengths}`,
   });
 
-  const hasGaps = Array.isArray(result.gaps) && result.gaps.length >= expected.minGaps;
   checks.push({
-    name: "Sufficient gaps identified",
-    passed: hasGaps,
-    detail: `Got ${result.gaps?.length || 0} gaps, expected ≥${expected.minGaps}`,
+    name: "Sufficient gaps",
+    passed: Array.isArray(result.gaps) && result.gaps.length >= expected.minGaps,
+    detail: `Got ${result.gaps?.length || 0}, expected >= ${expected.minGaps}`,
   });
 
   return {
@@ -42,6 +39,18 @@ function evaluateResult(result, expected) {
   };
 }
 
+const btnBase = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--space-2)",
+  padding: "var(--space-2) var(--space-4)",
+  borderRadius: "var(--radius-md)",
+  fontSize: "13px",
+  fontWeight: 500,
+  cursor: "pointer",
+  border: "none",
+};
+
 export default function EvalDashboard() {
   const [results, setResults] = useState([]);
   const [running, setRunning] = useState(false);
@@ -50,27 +59,17 @@ export default function EvalDashboard() {
   async function runEvals() {
     setRunning(true);
     setResults([]);
-
     for (let i = 0; i < evalCases.length; i++) {
       const tc = evalCases[i];
       setCurrentCase(tc.name);
-
       try {
         const analysis = await analyzeResume(tc.resume, tc.jobDescription);
         const evaluation = evaluateResult(analysis, tc.expected);
         setResults((prev) => [...prev, { testCase: tc, analysis, evaluation }]);
       } catch (err) {
-        setResults((prev) => [
-          ...prev,
-          {
-            testCase: tc,
-            analysis: null,
-            evaluation: { checks: [], passed: false, passCount: 0, totalChecks: 4, error: err.message },
-          },
-        ]);
+        setResults((prev) => [...prev, { testCase: tc, analysis: null, evaluation: { checks: [], passed: false, passCount: 0, totalChecks: 4, error: err.message } }]);
       }
     }
-
     setCurrentCase(null);
     setRunning(false);
   }
@@ -78,119 +77,151 @@ export default function EvalDashboard() {
   const totalPassed = results.filter((r) => r.evaluation.passed).length;
   const totalChecks = results.reduce((sum, r) => sum + r.evaluation.passCount, 0);
   const maxChecks = results.reduce((sum, r) => sum + r.evaluation.totalChecks, 0);
+  const pct = maxChecks > 0 ? Math.round((totalChecks / maxChecks) * 100) : 0;
+  const pctColor = maxChecks > 0 && totalChecks === maxChecks ? "var(--success)" : maxChecks > 0 && totalChecks / maxChecks >= 0.75 ? "var(--warning)" : "var(--danger)";
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-200">Evaluation Harness</h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Runs {evalCases.length} test cases against Claude and validates output structure and scoring consistency.
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>Evaluation Harness</h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+            {evalCases.length} test cases validating scoring consistency and output structure.
           </p>
         </div>
         <button
           onClick={runEvals}
           disabled={running}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-900/30"
+          style={{
+            ...btnBase,
+            background: "var(--accent)",
+            color: "#fff",
+            opacity: running ? 0.6 : 1,
+          }}
         >
-          {running && (
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-            </svg>
-          )}
+          {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
           {running ? "Running..." : "Run Evals"}
         </button>
       </div>
 
       {running && currentCase && (
-        <div className="bg-indigo-900/20 border border-indigo-500/20 rounded-xl p-4 flex items-center gap-3">
-          <svg className="w-5 h-5 animate-spin text-indigo-400" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-          </svg>
-          <span className="text-sm text-indigo-300">
-            Running: <span className="font-medium">{currentCase}</span> ({results.length + 1}/{evalCases.length})
+        <div
+          className="flex items-center"
+          style={{
+            gap: "var(--space-3)",
+            padding: "var(--space-3) var(--space-4)",
+            background: "var(--accent-muted)",
+            border: "1px solid var(--accent-border)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <Loader2 size={14} className="animate-spin" style={{ color: "var(--accent)" }} />
+          <span style={{ fontSize: "13px", color: "var(--accent)" }}>
+            {currentCase} ({results.length + 1}/{evalCases.length})
           </span>
         </div>
       )}
 
       {results.length > 0 && (
         <>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-gray-200">{totalPassed}/{results.length}</div>
-              <div className="text-xs text-gray-400 mt-1">Test Cases Passed</div>
-            </div>
-            <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-gray-200">{totalChecks}/{maxChecks}</div>
-              <div className="text-xs text-gray-400 mt-1">Individual Checks</div>
-            </div>
-            <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-center">
-              <div className={`text-2xl font-bold ${maxChecks > 0 && totalChecks === maxChecks ? "text-emerald-400" : maxChecks > 0 && totalChecks / maxChecks >= 0.75 ? "text-amber-400" : "text-red-400"}`}>
-                {maxChecks > 0 ? Math.round((totalChecks / maxChecks) * 100) : 0}%
-              </div>
-              <div className="text-xs text-gray-400 mt-1">Consistency Score</div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {results.map((r, idx) => (
-              <div key={idx} className={`rounded-xl border p-5 ${r.evaluation.passed ? "bg-emerald-950/20 border-emerald-500/20" : "bg-red-950/20 border-red-500/20"}`}>
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${r.evaluation.passed ? "bg-emerald-400" : "bg-red-400"}`} />
-                      <h3 className="font-semibold text-gray-200 text-sm">{r.testCase.name}</h3>
-                    </div>
-                    <span className={`text-xs mt-1 inline-block ${r.evaluation.passed ? "text-emerald-400" : "text-red-400"}`}>
-                      {r.evaluation.passed ? "PASSED" : "FAILED"} — {r.evaluation.passCount}/{r.evaluation.totalChecks} checks
-                    </span>
-                  </div>
-                  {r.analysis && <ScoreIndicator score={r.analysis.fit_score} />}
-                </div>
-
-                {r.evaluation.error && (
-                  <p className="text-red-400 text-sm mb-3">Error: {r.evaluation.error}</p>
-                )}
-
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {r.evaluation.checks.map((check, ci) => (
-                    <div key={ci} className="flex items-start gap-2 text-sm">
-                      <span className={`mt-0.5 shrink-0 ${check.passed ? "text-emerald-400" : "text-red-400"}`}>
-                        {check.passed ? "✓" : "✗"}
-                      </span>
-                      <div>
-                        <div className={check.passed ? "text-gray-300" : "text-red-300"}>{check.name}</div>
-                        <div className="text-xs text-gray-500">{check.detail}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {r.analysis && (
-                  <details className="mt-3">
-                    <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400 transition-colors">
-                      View raw output
-                    </summary>
-                    <pre className="mt-2 text-xs bg-gray-900/50 rounded-lg p-3 overflow-x-auto text-gray-400">
-                      {JSON.stringify(r.analysis, null, 2)}
-                    </pre>
-                  </details>
-                )}
+          <div className="grid grid-cols-3" style={{ gap: "var(--space-4)" }}>
+            {[
+              { value: `${totalPassed}/${results.length}`, label: "Cases Passed" },
+              { value: `${totalChecks}/${maxChecks}`, label: "Checks Passed" },
+              { value: `${pct}%`, label: "Consistency", color: pctColor },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                style={{
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-lg)",
+                  padding: "var(--space-4)",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "22px", fontWeight: 600, color: stat.color || "var(--text-primary)" }}>{stat.value}</div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>{stat.label}</div>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+            {results.map((r, idx) => {
+              const passed = r.evaluation.passed;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: "var(--bg-secondary)",
+                    border: `1px solid ${passed ? "rgba(74,222,128,0.12)" : "rgba(239,107,107,0.12)"}`,
+                    borderRadius: "var(--radius-lg)",
+                    padding: "var(--space-5)",
+                  }}
+                >
+                  <div className="flex items-start justify-between" style={{ marginBottom: "var(--space-4)" }}>
+                    <div>
+                      <div className="flex items-center" style={{ gap: "var(--space-2)" }}>
+                        {passed ? <CheckCircle size={14} style={{ color: "var(--success)" }} /> : <XCircle size={14} style={{ color: "var(--danger)" }} />}
+                        <h3 style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>{r.testCase.name}</h3>
+                      </div>
+                      <span style={{ fontSize: "11px", color: passed ? "var(--success)" : "var(--danger)", marginTop: "var(--space-1)", display: "inline-block" }}>
+                        {passed ? "PASSED" : "FAILED"} - {r.evaluation.passCount}/{r.evaluation.totalChecks} checks
+                      </span>
+                    </div>
+                    {r.analysis && <ScoreIndicator score={r.analysis.fit_score} compact />}
+                  </div>
+
+                  {r.evaluation.error && (
+                    <p style={{ fontSize: "12px", color: "var(--danger)", marginBottom: "var(--space-3)" }}>Error: {r.evaluation.error}</p>
+                  )}
+
+                  <div className="grid sm:grid-cols-2" style={{ gap: "var(--space-2)" }}>
+                    {r.evaluation.checks.map((check, ci) => (
+                      <div key={ci} className="flex items-start" style={{ gap: "var(--space-2)", fontSize: "13px" }}>
+                        {check.passed ? <CheckCircle size={13} style={{ color: "var(--success)", marginTop: "2px", flexShrink: 0 }} /> : <XCircle size={13} style={{ color: "var(--danger)", marginTop: "2px", flexShrink: 0 }} />}
+                        <div>
+                          <div style={{ color: check.passed ? "var(--text-secondary)" : "var(--danger)" }}>{check.name}</div>
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{check.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {r.analysis && (
+                    <details style={{ marginTop: "var(--space-3)" }}>
+                      <summary className="flex items-center" style={{ gap: "var(--space-1)", fontSize: "11px", color: "var(--text-muted)", cursor: "pointer", listStyle: "none" }}>
+                        <ChevronDown size={12} /> Raw output
+                      </summary>
+                      <pre
+                        style={{
+                          marginTop: "var(--space-2)",
+                          fontSize: "11px",
+                          background: "var(--bg-primary)",
+                          borderRadius: "var(--radius-md)",
+                          padding: "var(--space-3)",
+                          overflow: "auto",
+                          color: "var(--text-tertiary)",
+                        }}
+                      >
+                        {JSON.stringify(r.analysis, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
 
       {!running && results.length === 0 && (
-        <div className="text-center py-16 text-gray-500">
-          <svg className="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
-          <p className="text-sm">Click "Run Evals" to test Claude's analysis consistency</p>
-          <p className="text-xs mt-2 text-gray-600">3 test cases · 4 checks each · Validates scoring, recommendations, and output structure</p>
+        <div style={{ textAlign: "center", padding: "var(--space-16) 0" }}>
+          <FlaskConical size={28} style={{ margin: "0 auto var(--space-4)", color: "var(--text-muted)" }} />
+          <p style={{ fontSize: "13px", color: "var(--text-tertiary)" }}>Run eval cases to test scoring consistency</p>
+          <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>
+            {evalCases.length} test cases with {evalCases.length * 4} total checks
+          </p>
         </div>
       )}
     </div>

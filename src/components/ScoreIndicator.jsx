@@ -1,38 +1,86 @@
 import { useMemo } from "react";
 
-export default function ScoreIndicator({ score }) {
-  const { color, bg, border, label } = useMemo(() => {
-    if (score >= 85) return { color: "text-emerald-400", bg: "bg-emerald-950/50", border: "border-emerald-500/30", label: "Exceptional Fit" };
-    if (score >= 70) return { color: "text-emerald-400", bg: "bg-emerald-950/50", border: "border-emerald-500/30", label: "Strong Fit" };
-    if (score >= 55) return { color: "text-amber-400", bg: "bg-amber-950/50", border: "border-amber-500/30", label: "Borderline Fit" };
-    if (score >= 40) return { color: "text-orange-400", bg: "bg-orange-950/50", border: "border-orange-500/30", label: "Weak Fit" };
-    return { color: "text-red-400", bg: "bg-red-950/50", border: "border-red-500/30", label: "Poor Fit" };
+export default function ScoreIndicator({ score, compact = false }) {
+  const { color, label } = useMemo(() => {
+    if (score >= 85) return { color: "var(--success)", label: "Exceptional" };
+    if (score >= 70) return { color: "var(--success)", label: "Strong" };
+    if (score >= 55) return { color: "var(--warning)", label: "Borderline" };
+    if (score >= 40) return { color: "var(--warning)", label: "Weak" };
+    return { color: "var(--danger)", label: "Poor" };
   }, [score]);
 
-  const strokeColor = score >= 70 ? "#34d399" : score >= 55 ? "#fbbf24" : score >= 40 ? "#fb923c" : "#f87171";
-  const circumference = 2 * Math.PI * 54;
+  const strokeColor = score >= 70 ? "var(--success)" : score >= 55 ? "var(--warning)" : "var(--danger)";
+  const size = compact ? 72 : 120;
+  const viewBox = compact ? 80 : 120;
+  const radius = compact ? 34 : 52;
+  const strokeW = compact ? 5 : 6;
+  const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
+  const center = viewBox / 2;
 
   return (
-    <div className={`flex flex-col items-center gap-3 p-6 rounded-2xl border ${bg} ${border}`}>
-      <div className="relative w-36 h-36">
-        <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="54" fill="none" stroke="#1f2937" strokeWidth="8" />
+    <div
+      className="flex flex-col items-center"
+      style={{
+        gap: compact ? "var(--space-1)" : "var(--space-2)",
+        padding: compact ? "var(--space-3)" : "var(--space-5)",
+        borderRadius: "var(--radius-lg)",
+        background: "var(--bg-tertiary)",
+        border: "1px solid var(--border-subtle)",
+      }}
+    >
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${viewBox} ${viewBox}`}
+          style={{ transform: "rotate(-90deg)" }}
+        >
           <circle
-            cx="60" cy="60" r="54" fill="none"
-            stroke={strokeColor} strokeWidth="8"
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke="var(--border-subtle)"
+            strokeWidth={strokeW}
+          />
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth={strokeW}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
-            className="transition-all duration-1000 ease-out"
+            style={{ transition: "stroke-dashoffset 0.8s ease-out" }}
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${color}`}>{score}</span>
-          <span className="text-xs text-gray-400">/ 100</span>
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center"
+        >
+          <span
+            className="font-semibold"
+            style={{ fontSize: compact ? "20px" : "28px", color }}
+          >
+            {score}
+          </span>
+          {!compact && (
+            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>/ 100</span>
+          )}
         </div>
       </div>
-      <span className={`text-sm font-semibold ${color}`}>{label}</span>
+      <span
+        style={{
+          fontSize: compact ? "10px" : "11px",
+          fontWeight: 500,
+          color,
+          letterSpacing: "0.02em",
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }

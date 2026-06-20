@@ -1,5 +1,8 @@
 const STORAGE_KEY = "jobfit-experiences";
 const INFO_KEY = "jobfit-personal-info";
+const SKILLS_KEY = "jobfit-skills";
+const REFS_KEY = "jobfit-references";
+const APPS_KEY = "jobfit-applications";
 
 function load(key, fallback) {
   try {
@@ -13,7 +16,11 @@ function load(key, fallback) {
 function save(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-  } catch { /* quota exceeded */ }
+    return true;
+  } catch {
+    console.warn(`Failed to save to localStorage (key: ${key}). Storage may be full.`);
+    return false;
+  }
 }
 
 export function loadExperiences() {
@@ -40,6 +47,61 @@ export function savePersonalInfo(info) {
   save(INFO_KEY, info);
 }
 
+export function loadSkills() {
+  return load(SKILLS_KEY, {
+    technical: "",
+    languages: "",
+    tools: "",
+    certifications: "",
+    other: "",
+  });
+}
+
+export function saveSkills(skills) {
+  save(SKILLS_KEY, skills);
+}
+
+export function loadReferences() {
+  return load(REFS_KEY, []);
+}
+
+export function saveReferences(refs) {
+  save(REFS_KEY, refs);
+}
+
+export function createReference() {
+  return {
+    id: crypto.randomUUID(),
+    name: "",
+    title: "",
+    organization: "",
+    email: "",
+    phone: "",
+    relationship: "",
+  };
+}
+
+export function loadApplications() {
+  return load(APPS_KEY, []);
+}
+
+export function saveApplications(apps) {
+  save(APPS_KEY, apps);
+}
+
+export function createApplication(companyName, role, jobDesc, fitScore) {
+  return {
+    id: crypto.randomUUID(),
+    company: companyName,
+    role: role || "",
+    jobDescription: jobDesc,
+    fitScore: fitScore || null,
+    status: "applied",
+    dateApplied: new Date().toLocaleDateString(),
+    notes: "",
+  };
+}
+
 export function createExperience(type) {
   return {
     id: crypto.randomUUID(),
@@ -61,6 +123,35 @@ export const DEMO_PERSONAL_INFO = {
   github: "github.com/alexchen",
   summary: "Senior Software Engineer with 6 years of experience building scalable web applications and distributed systems. Passionate about clean code, testing, and mentoring junior developers.",
 };
+
+export const DEMO_SKILLS = {
+  technical: "TypeScript, JavaScript, Python, Go, SQL, GraphQL, REST APIs",
+  languages: "React, Next.js, Node.js, Express, Flask, FastAPI",
+  tools: "AWS, GCP, Kubernetes, Docker, Terraform, Redis, PostgreSQL, MongoDB, DynamoDB, Git",
+  certifications: "AWS Solutions Architect Associate (2022)",
+  other: "Agile/Scrum, CI/CD, System Design, Technical Mentorship",
+};
+
+export const DEMO_REFERENCES = [
+  {
+    id: "demo-ref-1",
+    name: "Sarah Kim",
+    title: "Engineering Manager",
+    organization: "Stripe",
+    email: "sarah.kim@stripe.com",
+    phone: "+1 415-555-0201",
+    relationship: "Direct manager for 3 years",
+  },
+  {
+    id: "demo-ref-2",
+    name: "David Park",
+    title: "Senior Staff Engineer",
+    organization: "Coinbase",
+    email: "david.park@coinbase.com",
+    phone: "",
+    relationship: "Technical lead and mentor",
+  },
+];
 
 export const DEMO_EXPERIENCES = [
   {
