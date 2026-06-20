@@ -1,87 +1,93 @@
 # JobFit AI
 
-AI-powered resume generator that tailors your experience to any job description using a multi-step agent pipeline.
-
-You store your work experience, volunteer work, projects, and education once. For any job posting, the agent extracts requirements, scores your experiences, drafts a tailored resume, evaluates it honestly, and revises it — producing an optimized resume with a fit score, honest recommendation, and a downloadable Harvard-template PDF.
-
-## How It Works
-
-```
-Job Description
-      │
-      ▼
-┌─────────────────────┐
-│ Extract Requirements │  Parse job posting → must_have, nice_to_have, keywords
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Score Experiences    │  Your experience bank → relevance scores (0-100 each)
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Draft Resume         │  Top experiences → tailored resume with rewritten bullets
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Evaluate (Brutally   │  Separate "honest critic" persona scores the draft
-│ Honest)              │  → fit_score, gaps, revision_instructions
-└──────────┬──────────┘
-           │ revision_needed? (always yes on first pass)
-           ▼
-┌─────────────────────┐
-│ Revise Resume        │  Apply feedback → improved resume
-└──────────┬──────────┘
-           │ loop back to Evaluate (max 3 revisions)
-           ▼
-┌─────────────────────┐
-│ Final Output         │  Resume + score + recommendation + PDF
-└─────────────────────┘
-```
-
-The key design insight: the evaluator is a **separate API call** from the writer. It uses a "brutally honest" system prompt and has no memory of having written the resume. This prevents self-congratulatory scoring and produces calibrated assessments.
+A personal AI-powered job application toolkit. Store your experience once, then for any job: search matching roles, generate a tailored resume with a multi-step agent pipeline, get a brutally honest fit assessment, produce a cover letter, export to PDF or DOCX, and track your applications — all from one interface.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Kill any stale processes on the required ports
 npx kill-port 5173 3001
-
-# Start both the backend server and frontend dev server
 npm run dev
-
-# Open in browser
-open http://localhost:5173
 ```
 
-On first use:
-1. Go to the **My Experience** tab and fill in your personal info + all experiences
-2. Go to **Generate Resume**, enter your Anthropic API key (or type `demo` for demo mode)
-3. Paste a job description, enter the company name, and click **Generate Resume**
+Open `http://localhost:5173`. A welcome page walks you through the features. Click **Get Started**, then:
 
-## Features
+1. **Experience tab** — Add your personal info, work history, skills, and references (or upload an existing resume)
+2. **Search tab** — Click "Find Matching Jobs" to discover roles that fit your profile
+3. **Generate tab** — Connect your AI provider (Claude or GPT-4o), paste a job description, and generate a tailored resume
+4. **Tracker tab** — Track applications from Applied through Offered/Rejected
 
-- **Experience Bank** — Store all your work, volunteer, projects, and education. Persists in localStorage across sessions.
-- **Multi-Step Agent Pipeline** — 5 discrete AI steps with guaranteed revision loop. Not a single-shot prompt.
-- **Brutally Honest Scoring** — Separate evaluator persona that doesn't sugar-coat. Recommendations: Apply Now / Apply / Apply with Caveats / Upskill First / Look Elsewhere.
-- **Harvard-Template PDF Export** — One-click download. Times New Roman, proper margins, ATS-friendly formatting.
-- **Company-Titled History** — Last 10 generated resumes, each titled by company name.
-- **PDF Upload** — Upload job descriptions as PDFs. Client-side text extraction via pdfjs-dist.
-- **Agent Trace** — Inspect every step the agent took via `GET /api/trace`.
-- **Demo Mode** — Type `demo` as the API key to explore the UI without API costs.
+Type `demo` as the API key on the Generate tab to explore without API costs.
+
+## What It Does
+
+### Experience Bank
+Store all your work experience, volunteer work, projects, education, skills (technical, frameworks, tools, certifications), and professional references. Everything persists in your browser's localStorage — fill it in once and it's there whenever you come back. Upload an existing resume PDF to auto-populate entries via AI parsing.
+
+### Job Matching
+One click searches job boards (via JSearch/RapidAPI) using your most recent job title. Each listing gets a fit score from a single batch LLM call that evaluates all results against your full profile. Listings sort by fit score. Dismiss irrelevant ones. Click any listing to see the full description, then "Generate Resume" to pre-fill the generator.
+
+### Resume Generation (Multi-Step Agent Pipeline)
+Not a single-shot prompt. The generation pipeline runs 5 discrete AI steps:
+
+```
+Extract Requirements → Score Experiences → Draft Resume → Evaluate (Brutally Honest) → Revise
+                                                                    ↕ loop (min 1, max 3)
+```
+
+1. **Extract Requirements** — Parses the job description into structured must-haves, nice-to-haves, keywords, and seniority level
+2. **Score Experiences** — Scores each entry in your experience bank 0-100 against the requirements
+3. **Draft Resume** — Selects top-scoring experiences, rewrites bullet points with job keywords, generates a tailored professional summary
+4. **Evaluate** — A separate "brutally honest" API call scores the draft. First evaluation always forces at least one revision
+5. **Revise** — Applies specific feedback from the evaluator. Loops back to evaluate until satisfied or 3 revisions hit
+
+The evaluator is a different LLM call from the writer. It has a "brutally honest" system prompt and no memory of writing the resume. This separation prevents self-congratulatory scoring.
+
+### Fit Assessment
+Every generated resume comes with:
+- **Fit score** (0-100) with color-coded ring
+- **Recommendation**: Apply Now / Apply / Apply with Caveats / Upskill First / Look Elsewhere
+- **Strengths**: What aligns with the job
+- **Gaps**: What's missing, honestly
+- **Reality check**: Interview chances and competitive position
+
+### ATS Keyword Analysis
+Toggle the ATS Keywords button after generation. It extracts frequently-used terms from the job description, checks which appear in your resume vs. which are missing, and shows a match rate percentage. No API call — runs entirely client-side.
+
+### Cover Letter Generation
+One-click generates a professional 3-4 paragraph cover letter that references specific achievements from your tailored resume. Copy to clipboard with one click.
+
+### Export
+- **PDF** — Harvard-template format: Times New Roman, centered name, horizontal rules, bold titles with italic dates, proper margins. ATS-friendly
+- **DOCX** — Word document with the same structure. Better for ATS systems that struggle with PDFs
+- **Clipboard** — Plain text copy
+
+### Application Tracker
+Track every job application with status management:
+- **Statuses**: Applied → Interviewing → Offered / Rejected / Ghosted
+- **Notes field** for interview dates, contacts, follow-ups
+- **Fit score** carried over from generation
+- **Job description** preserved for reference
+- Click "Mark Applied" on any generated resume to add it automatically
+
+### Dual AI Provider Support
+Choose between **Claude** (Anthropic) or **GPT-4o** (OpenAI) on the Generate tab. Both providers use the same prompts through a unified abstraction. The entire agent pipeline is provider-agnostic.
+
+### Demo Mode
+Type `demo` as the API key. Pre-populates the experience bank with a sample software engineer profile, returns mock results for all features. No API keys or costs needed.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19, Tailwind CSS v4, Vite 8 |
-| Backend | Express 5 (Node.js) |
-| LLM | Claude Sonnet 4.6 via @anthropic-ai/sdk |
-| Agent | Custom orchestrator (agent.js) with 5 tool functions |
+| Frontend | React 19, Tailwind CSS v4, Vite 8, Lucide icons |
+| Backend | Express 5 (Node.js, ESM) |
+| LLM | Claude Sonnet 4.6 or GPT-4o via provider abstraction |
+| Agent | Custom multi-step orchestrator with 5 tool functions |
+| Job Search | JSearch via RapidAPI (free tier: 100 req/day) |
 | PDF Export | jsPDF (Harvard template) |
-| PDF Import | pdfjs-dist (text extraction) |
+| DOCX Export | docx + file-saver |
+| PDF Import | pdfjs-dist (client-side text extraction) |
 | Persistence | Browser localStorage |
 | Dev Tooling | concurrently, ESLint |
 
@@ -89,8 +95,9 @@ On first use:
 
 ```
 jobfit-ai/
-├── server.js                    # Express backend — API endpoints + validation
-├── agent.js                     # Multi-step agent pipeline (orchestrator + 5 tools)
+├── server.js                    # Express backend — all API endpoints, validation, caching
+├── agent.js                     # Multi-step agent pipeline (5 tools + orchestrator)
+├── provider.js                  # LLM provider abstraction (Anthropic + OpenAI)
 ├── test-agent.js                # Standalone agent test with trace output
 ├── vite.config.js               # Vite + Tailwind + /api proxy
 ├── package.json
@@ -98,126 +105,98 @@ jobfit-ai/
 ├── index.html
 ├── public/                      # Static assets
 └── src/
-    ├── App.jsx                  # Root — tab navigation, history state
-    ├── api.js                   # Frontend fetch wrapper
-    ├── store.js                 # localStorage CRUD + demo data
-    ├── evalCases.js             # Test cases for eval dashboard
-    ├── index.css                # Tailwind entry
+    ├── App.jsx                  # Root — welcome page, tab navigation, cross-tab state
+    ├── api.js                   # Frontend fetch wrappers for all endpoints
+    ├── store.js                 # localStorage CRUD (experiences, skills, refs, apps) + demo data
+    ├── evalCases.js             # 3 test cases for eval harness
+    ├── index.css                # Design system (Inter font, 8px grid, color tokens)
     ├── main.jsx                 # React root
     └── components/
-        ├── ExperiencePage.jsx   # Experience bank manager
-        ├── GeneratorPage.jsx    # Job input, API key, resume preview, PDF
-        ├── HistoryPanel.jsx     # History view (titled by company)
-        ├── ScoreIndicator.jsx   # Animated SVG score ring
-        └── EvalDashboard.jsx    # Legacy eval harness
+        ├── ExperiencePage.jsx   # Experience bank + skills + references + resume upload
+        ├── SearchPage.jsx       # Job matching — search, score, dismiss, generate
+        ├── GeneratorPage.jsx    # Resume generation + cover letter + ATS + exports
+        ├── TrackerPage.jsx      # Application tracker with status management
+        ├── HistoryPanel.jsx     # Last 10 generated resumes titled by company
+        ├── ScoreIndicator.jsx   # Animated SVG score ring (compact + full)
+        └── EvalDashboard.jsx    # Eval harness for testing scoring consistency
 ```
-
-## Agent Pipeline Details
-
-Each step is a focused Claude API call with a narrow system prompt:
-
-### Step 1: Extract Requirements
-Parses the raw job description into structured data:
-```json
-{
-  "must_have": ["5+ years backend experience", "Go or Python", ...],
-  "nice_to_have": ["time-series databases", ...],
-  "keywords": ["Kubernetes", "Kafka", "distributed systems", ...],
-  "seniority_level": "senior",
-  "role_type": "backend engineer",
-  "years_experience": "5+"
-}
-```
-
-### Step 2: Score Experiences
-Each experience from your bank gets a relevance score:
-```json
-[
-  { "exp_id": "exp-1", "relevance_score": 85, "rationale": "Direct microservices experience at scale" },
-  { "exp_id": "exp-4", "relevance_score": 30, "rationale": "Education only tangentially relevant" }
-]
-```
-
-### Step 3: Draft Resume
-Uses top-scored experiences to create a tailored resume. Rewrites bullet points to incorporate job keywords. Drops low-relevance experiences.
-
-### Step 4: Evaluate Resume
-A **separate** API call with a "brutally honest" system prompt. Scores the draft 0-100 and provides specific revision instructions. First evaluation always forces a revision.
-
-### Step 5: Revise Resume
-Applies the evaluator's feedback. Common revisions: strengthen specific bullets, add quantified metrics, reorder sections for impact.
-
-Steps 4-5 loop until the evaluator is satisfied or 3 revisions are reached.
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/validate` | Validate API key (or enter demo mode with `"demo"`) |
-| POST | `/api/generate` | Run full agent pipeline → tailored resume |
-| POST | `/api/analyze` | Legacy single-call analyzer (eval dashboard) |
+| POST | `/api/validate` | Validate LLM API key + select provider (or `"demo"` for demo mode) |
+| POST | `/api/generate` | Run full agent pipeline → tailored resume + fit analysis |
+| POST | `/api/cover-letter` | Generate cover letter from resume + job description |
+| POST | `/api/analyze` | Single-call fit analysis (used by eval dashboard) |
+| POST | `/api/parse-resume` | Parse uploaded resume text into structured experience entries |
+| POST | `/api/jobs/configure` | Validate and store RapidAPI key for job search |
+| POST | `/api/jobs/search` | Search JSearch API with caching (5 min TTL, 50 max entries) |
+| POST | `/api/jobs/score` | Batch LLM scoring of job listings against user profile |
+| GET | `/api/jobs/status` | Check if search API is configured |
 | GET | `/api/trace` | Last agent execution trace (debug) |
 | GET | `/api/status` | Health check |
 
-## Testing the Agent
+## API Keys
 
-Run the agent standalone with full trace output:
+| Key | Purpose | Where to enter | Free tier |
+|-----|---------|----------------|-----------|
+| Anthropic or OpenAI | Resume generation, scoring, cover letters | Generate tab | Pay per use |
+| RapidAPI (JSearch) | Job board search | Search tab | 100 requests/day |
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-your-key node test-agent.js
-```
-
-This sends a sample job description (Datadog Senior Backend Engineer) through the full pipeline and prints each step: requirements extracted, experiences scored, draft created, evaluation with revision instructions, and final result.
+Both keys are held in server memory only, never persisted to disk.
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start backend + frontend together |
+| `npm run dev` | Start backend (port 3001) + frontend (port 5173) together |
 | `npm run dev:server` | Start only the Express backend |
 | `npm run dev:client` | Start only the Vite frontend |
-| `npm run build` | Production build |
+| `npm run build` | Production build to `dist/` |
 | `npm run lint` | Run ESLint |
+| `ANTHROPIC_API_KEY=sk-ant-... node test-agent.js` | Run agent pipeline standalone with trace |
 
 ## Data Persistence
 
-All user data lives in the browser's `localStorage`:
+All user data lives in the browser's localStorage:
 
-| Data | Survives |
-|------|----------|
-| Personal info (name, email, etc.) | Page refresh, browser restart, server restart |
-| Experience bank (all entries) | Page refresh, browser restart, server restart |
-| Generated resume history (last 10) | Page refresh, browser restart, server restart |
-| API key | Server restart clears it (re-enter next session) |
+| Data | Storage Key | Persists Across |
+|------|-------------|-----------------|
+| Personal info | `jobfit-personal-info` | Browser restart, server restart |
+| Experience bank | `jobfit-experiences` | Browser restart, server restart |
+| Skills | `jobfit-skills` | Browser restart, server restart |
+| References | `jobfit-references` | Browser restart, server restart |
+| Application tracker | `jobfit-applications` | Browser restart, server restart |
+| Generated resume history (last 10) | `jobfit-history` | Browser restart, server restart |
+| Welcome page flag | `jobfit-welcomed` | Browser restart, server restart |
+| API keys | Server memory only | Lost on server restart |
 
 ## Cost
 
-The agent makes 7-9 Claude API calls per generation (extract + score + draft + evaluate + revise + evaluate, sometimes another revise cycle). Typical cost: ~$0.05-0.10 per resume generated. Demo mode is free.
+The agent makes 7-9 LLM calls per resume generation. Typical cost: ~$0.05-0.10 per resume. Cover letter adds 1 call (~$0.01). Job scoring adds 1 call per batch (~$0.02). Demo mode is free.
 
 ## Architecture Decisions
 
-**Why a multi-step agent instead of one prompt?**
-A single prompt asks the LLM to write AND judge simultaneously. The writer has incentive to score its own work highly. By separating the evaluator into a different call with a "brutally honest" persona, we get calibrated scores and actionable feedback that the revision step can act on.
+**Multi-step agent over single prompt** — Separating the writer from the evaluator produces better output. The same model that wrote the resume can't honestly judge it in the same context. The revision loop guarantees at least one improvement pass.
 
-**Why force the first revision?**
-First drafts are never optimal. By always triggering at least one revision cycle, we guarantee improvement without relying on the model to self-identify weaknesses on the first pass.
+**Provider abstraction** — Both Anthropic and OpenAI are wrapped behind a `complete(userMessage, systemPrompt, maxTokens)` interface. The agent pipeline and all endpoints are provider-agnostic. Adding a new provider means implementing one class.
 
-**Why max 3 revisions?**
-Diminishing returns. Most resumes converge after 1-2 passes. The cap prevents pathological loops and keeps generation time under 30 seconds.
+**Batch scoring for job search** — Instead of running the full agent pipeline for each listing (8 calls each), one LLM call scores all listings at once against a condensed experience summary. Same cost as a single analyze call.
 
-**Why backend proxy?**
-The API key never appears in browser DevTools network traffic. All Claude calls happen server-side. The frontend bundle doesn't include the Anthropic SDK.
+**Backend proxy** — API keys never appear in browser network traffic. All LLM calls happen server-side. The frontend bundle doesn't include any LLM SDK.
 
-**Why localStorage over a database?**
-This is a personal tool. One user, one browser. localStorage is zero-config, instant, and survives indefinitely. No server-side persistence needed.
+**localStorage over a database** — Personal tool, one user, one browser. Zero config, instant, survives indefinitely. No server-side persistence needed.
+
+**Harvard PDF template** — Times New Roman, 72pt margins, centered name in bold caps, horizontal rules under headings, italic dates right-aligned. Standard ATS-friendly format that works across industries.
 
 ## Limitations
 
-- No `.docx` upload support
-- Image-based/scanned PDFs won't extract text
-- Single-user (one API key stored globally in server memory)
-- No streaming — full loading spinner during generation (~15-30s)
-- Requires `npx kill-port 5173 3001` if stale processes exist from prior runs
+- Image-based/scanned PDFs won't extract text (would need OCR)
+- Single-user — server stores one API key globally in memory
+- No streaming — loading spinner during generation (~15-30 seconds)
+- Job search requires free RapidAPI key registration
+- Must kill stale processes before restarting (`npx kill-port 5173 3001`)
 
 ## License
 
